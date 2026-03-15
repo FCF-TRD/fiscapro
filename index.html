@@ -93,6 +93,19 @@ td{padding:10px 12px;font-size:12px;border-bottom:1px solid rgba(37,41,56,.5)}
 .ag-card{padding:14px;background:var(--bg3);border:1px solid var(--brd);border-radius:10px;margin-bottom:10px}
 .ag-log{margin-top:8px;padding:8px 10px;background:var(--bg);border-radius:6px;font-size:11px;color:var(--tx2);max-height:100px;overflow-y:auto;line-height:1.6}
 .veille{padding:14px;border-left:3px solid var(--acc);background:var(--bg3);border-radius:0 10px 10px 0;margin-bottom:10px}
+/* CHAT AI */
+.chat-box{display:flex;flex-direction:column;height:calc(100vh - 140px);min-height:400px}
+.chat-msgs{flex:1;overflow-y:auto;padding:8px 0;display:flex;flex-direction:column;gap:8px}
+.chat-msg{max-width:85%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6;word-break:break-word}
+.chat-msg.user{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.ai{align-self:flex-start;background:var(--bg3);border:1px solid var(--brd);border-bottom-left-radius:4px}
+.chat-msg.ai b{color:var(--acc2)}
+.chat-msg.system{align-self:center;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);color:var(--acc2);font-size:11px;text-align:center;max-width:95%}
+.chat-input{display:flex;gap:8px;padding-top:10px;border-top:1px solid var(--brd)}
+.chat-input input{flex:1}
+.chat-suggestions{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chat-suggestions button{font-size:11px;padding:6px 10px;background:var(--bg3);border:1px solid var(--brd);border-radius:16px;color:var(--tx2);cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+.chat-suggestions button:hover{border-color:var(--acc);color:var(--tx)}
 /* MOBILE NAV */
 .mob-bar{display:none;position:fixed;top:0;left:0;right:0;height:52px;background:var(--bg2);border-bottom:1px solid var(--brd);z-index:90;padding:0 14px;align-items:center;gap:10px}
 .mob-bar .ham{width:36px;height:36px;border-radius:8px;background:var(--bg3);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;flex-shrink:0}
@@ -639,7 +652,14 @@ function renderDashboard(el){
         ${echeance('Charges/mois',c.chg/12,'var(--tx)')}
       </div>
     </div>
-  </div>`;
+  </div>
+
+  ${(()=>{const tips=getDashboardTips();return tips.length>0?`
+  <div class="cd" style="margin-top:4px">
+    <div class="cd-t">💡 Conseils personnalisés</div>
+    ${tips.map(t=>`<div class="al al-${t.type==='red'?'w':t.type==='org'?'w':'i'}" style="font-size:12px;${t.type==='red'?'border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.06)':''}"><span>${t.type==='red'?'🚨':t.type==='org'?'⚠️':t.type==='pur'?'📅':'💡'}</span><span>${t.text}</span></div>`).join('')}
+    <div style="text-align:center;margin-top:8px"><button class="bt bt-p sm" onclick="goTo('assistant')">💬 Poser une question à l'IA</button></div>
+  </div>`:''})()}`;
   setTimeout(()=>initCharts(c,months,bank),50);
 }
 
@@ -1708,6 +1728,7 @@ render=function(){
       ${navItem('echeancier','📅','Échéancier fiscal')}
       ${navItem('declarations','🏛️','Déclarations')}
       <div class="nav-s">Intelligence</div>
+      ${navItem('assistant','💬','Mon Comptable IA')}
       ${navItem('opti','⭐','Optimisation fiscale')}
       ${navItem('agents','🤖','Agents comptables')}
       ${navItem('simul','📊','Simulateurs')}
@@ -1734,6 +1755,7 @@ renderPage=function(){
     case'previsionnel':renderPrevisionnel(pg);break;
     case'echeancier':renderEcheancier(pg);break;
     case'declarations':renderDeclarations(pg);break;
+    case'assistant':renderAssistant(pg);break;
     case'opti':renderOpti(pg);break;
     case'agents':renderAgents(pg);break;
     case'simul':renderSimul(pg);break;
@@ -2328,6 +2350,243 @@ window.removeReceipt=(i)=>{
   const receipts=load('ocrReceipts',[]);
   receipts.splice(i,1);save('ocrReceipts',receipts);renderPage();
 };
+
+// ============ ASSISTANT IA COMPTABLE ============
+let aiMessages=load('aiMessages',[]);
+let aiKey=load('aiKey','');
+
+function getCompanyContext(){
+  const c=compute();const t=TYPES[company?.type]||TYPES.SAS;const bank=computeBankBalance();
+  return`CONTEXTE ENTREPRISE:
+- Raison sociale: ${company?.nom||'Non renseigné'}
+- Forme juridique: ${t.f} (${t.l})
+- SIREN: ${company?.siren||'Non renseigné'}
+- Code APE: ${company?.ape||'Non renseigné'}
+- Date création: ${company?.dateCreation||'Non renseigné'}
+- Régime fiscal: ${company?.regime==='ir'?'Impôt sur le Revenu (IR)':'Impôt sur les Sociétés (IS)'}
+- Régime TVA: ${company?.regimeTVA||'Non renseigné'} ${company?.regimeTVA==='franchise'?'(franchise en base, pas de TVA)':company?.regimeTVA==='exoneree'?'(exonéré art. 261-4-4° CGI)':''}
+- Activité: ${company?.activite||'services'}
+- Rémunération dirigeant: ${company?.rem||0} €/mois brut
+- Statut social dirigeant: ${t.social}
+- Capital social: ${company?.capital||0} €
+
+CHIFFRES CLÉS (exercice en cours):
+- Chiffre d'affaires HT: ${c.ca.toFixed(2)} €
+- Dépenses HT: ${c.dep.toFixed(2)} €
+- Résultat avant IS: ${c.ben.toFixed(2)} €
+- IS estimé: ${c.is.toFixed(2)} €
+- Résultat net: ${c.net.toFixed(2)} €
+- TVA collectée: ${c.tvaC.toFixed(2)} € | TVA déductible: ${c.tvaD.toFixed(2)} €
+- Trésorerie comptable: ${c.treso.toFixed(2)} €
+- Encours clients impayés: ${c.encours.toFixed(2)} €
+${bank?`- Solde bancaire réel: ${bank.total.toFixed(2)} € (au ${bank.lastDate})`:'- Solde bancaire: non importé'}
+- Nombre de factures émises: ${factures.length}
+- Nombre de dépenses enregistrées: ${depenses.length}
+
+TOP 5 CATÉGORIES DE DÉPENSES:
+${(()=>{const cats={};depenses.forEach(d=>{cats[d.cat||'Autre']=(cats[d.cat||'Autre']||0)+(d.ht||0)});return Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`- ${k}: ${v.toFixed(2)} €`).join('\n')})()}`;
+}
+
+const AI_SYSTEM=`Tu es FiscaPro AI, un assistant expert qui combine 3 rôles:
+
+1. EXPERT-COMPTABLE SENIOR (20 ans d'expérience)
+- Tu maîtrises le PCG, la comptabilité française, les normes ANC
+- Tu sais lire un bilan, un compte de résultat, un grand livre
+- Tu conseilles sur les écritures, la clôture, les amortissements
+
+2. INSPECTEUR DES IMPÔTS (reconverti en conseil)
+- Tu connais le CGI par cœur (IS, IR, TVA, CET, CVAE, CFE)
+- Tu sais ce qui déclenche un contrôle fiscal et comment l'éviter
+- Tu connais les seuils, les délais, les formulaires (2065, 2033, CA3, CA12, DAS2...)
+
+3. AVOCAT FISCALISTE SENIOR
+- Tu optimises la rémunération (salaire vs dividendes)
+- Tu connais les niches fiscales (CIR, CII, JEI, ZFU, CESU...)
+- Tu conseilles sur la structure juridique optimale
+
+RÈGLES:
+- Parle simplement, comme si tu expliquais à un lycéen de 15 ans
+- Utilise des exemples concrets avec des chiffres
+- Cite toujours l'article de loi ou la source quand tu affirmes quelque chose
+- Si tu n'es pas sûr, dis-le clairement
+- Donne des conseils ACTIONNABLES (pas juste de la théorie)
+- Adapte tes réponses au contexte exact de l'entreprise (voir ci-dessous)
+- Quand c'est pertinent, propose de générer un document (modèle de lettre, déclaration, etc.)
+- Utilise des emojis pour rendre tes réponses plus lisibles
+- Réponds en français
+
+IMPORTANT: Tu n'es PAS un expert-comptable inscrit à l'Ordre. Précise que tes conseils sont informatifs et qu'il faut les faire valider par un professionnel pour les décisions importantes.`;
+
+function buildSuggestions(){
+  const c=compute();const sug=[];
+  if(!company?.ape)sug.push('Quel code APE pour mon activité ?');
+  if(c.ca>30000&&company?.regimeTVA==='franchise')sug.push('Je dépasse le seuil TVA, que faire ?');
+  if(c.ben>0)sug.push('Comment optimiser mon IS ?');
+  if(c.encours>0)sug.push('Comment relancer mes impayés ?');
+  sug.push('Salaire ou dividendes, que choisir ?');
+  sug.push('Quelles dépenses je peux déduire ?');
+  sug.push('Préparer ma clôture annuelle');
+  if(depenses.some(d=>/restaurant|repas/i.test(d.cat)))sug.push('Limites de déduction des repas ?');
+  sug.push('Échéances fiscales à venir');
+  sug.push('Comment lire mon bilan ?');
+  return sug.slice(0,6);
+}
+
+function renderAssistant(el){
+  const hasKey=!!aiKey;
+  el.innerHTML=`
+  <div class="top" style="margin-bottom:12px"><div><h2>💬 Mon Comptable IA</h2><div class="top-s">Expert-comptable + Inspecteur des impôts + Avocat fiscaliste</div></div>
+  ${hasKey?`<button class="bt bt-s sm" onclick="aiMessages=[];save('aiMessages',[]);renderPage()">Nouveau chat</button>`:''}
+  </div>
+
+  ${!hasKey?`
+  <div class="cd" style="text-align:center;padding:30px">
+    <div style="font-size:48px;margin-bottom:12px">🤖</div>
+    <div style="font-size:16px;font-weight:800;margin-bottom:8px">Configure ton assistant IA</div>
+    <p style="color:var(--tx3);font-size:13px;margin-bottom:16px;line-height:1.6">
+      Pour utiliser l'assistant, tu as besoin d'une clé API Anthropic (Claude).<br>
+      Va sur <b>console.anthropic.com</b> → API Keys → Créer une clé.<br>
+      Ta clé reste sur ton appareil, jamais envoyée ailleurs qu'à Anthropic.
+    </p>
+    <div class="fg" style="max-width:400px;margin:0 auto"><label>Clé API Anthropic</label>
+    <input class="inp" type="password" id="aiKeyInput" placeholder="sk-ant-..." style="text-align:center"></div>
+    <button class="bt bt-p" onclick="const k=$('#aiKeyInput').value.trim();if(k.startsWith('sk-ant')){aiKey=k;save('aiKey',k);renderPage();}else{alert('La clé doit commencer par sk-ant...');}">Activer l'assistant</button>
+    <div style="margin-top:16px">
+      <div class="al al-i"><span>🔒</span><span>Ta clé API est stockée <b>uniquement dans ton navigateur</b> (localStorage). Elle n'est jamais envoyée à un serveur tiers — seulement à l'API Anthropic directement.</span></div>
+    </div>
+  </div>`:`
+
+  <div class="cd" style="padding:12px">
+    <div class="chat-box">
+      <div class="chat-msgs" id="chatMsgs">
+        ${aiMessages.length===0?`
+        <div class="chat-msg system">
+          <b>3 experts à ton service</b><br>
+          Expert-comptable senior • Inspecteur des impôts • Avocat fiscaliste<br>
+          Pose n'importe quelle question sur ta compta, tes impôts, ou ton entreprise.
+        </div>`:''}
+        ${aiMessages.map(m=>`<div class="chat-msg ${m.role==='user'?'user':'ai'}">${m.role==='user'?m.content:formatAI(m.content)}</div>`).join('')}
+      </div>
+      ${aiMessages.length===0?`<div class="chat-suggestions" id="chatSug">
+        ${buildSuggestions().map(s=>`<button onclick="askAI(this.textContent)">${s}</button>`).join('')}
+      </div>`:''}
+      <div class="chat-input">
+        <input class="inp" id="chatIn" placeholder="Pose ta question..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askAI($('#chatIn').value);}">
+        <button class="bt bt-p" onclick="askAI($('#chatIn').value)">→</button>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:6px">
+    <button class="bt bt-s sm" onclick="if(confirm('Supprimer la clé API ?')){aiKey='';save('aiKey','');aiMessages=[];save('aiMessages',[]);renderPage();}">Déconnecter l'IA</button>
+  </div>`}`;
+
+  // Scroll to bottom
+  setTimeout(()=>{const m=$('#chatMsgs');if(m)m.scrollTop=m.scrollHeight;},50);
+}
+
+function formatAI(text){
+  return text
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/\n- /g,'\n• ')
+    .replace(/\n\d+\. /g,(m)=>'\n'+m.trim()+' ')
+    .replace(/`([^`]+)`/g,'<code style="background:var(--bg4);padding:1px 4px;border-radius:3px;font-size:11px">$1</code>')
+    .replace(/\n/g,'<br>');
+}
+
+window.askAI=async(question)=>{
+  if(!question||!question.trim())return;
+  question=question.trim();
+  const input=$('#chatIn');if(input)input.value='';
+  const sug=$('#chatSug');if(sug)sug.remove();
+
+  // Add user message
+  aiMessages.push({role:'user',content:question});
+  save('aiMessages',aiMessages);
+
+  // Show user message + loading
+  const msgs=$('#chatMsgs');
+  if(msgs){
+    msgs.innerHTML+=`<div class="chat-msg user">${question}</div>`;
+    msgs.innerHTML+=`<div class="chat-msg ai" id="aiLoading"><span class="spin" style="display:inline-block">⏳</span> Analyse en cours...</div>`;
+    msgs.scrollTop=msgs.scrollHeight;
+  }
+
+  try{
+    const context=getCompanyContext();
+    const apiMessages=aiMessages.map(m=>({role:m.role==='user'?'user':'assistant',content:m.content}));
+
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':aiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:2048,
+        system:AI_SYSTEM+'\n\n'+context,
+        messages:apiMessages
+      })
+    });
+
+    if(!res.ok){
+      const err=await res.json().catch(()=>({}));
+      throw new Error(err.error?.message||`Erreur API (${res.status})`);
+    }
+
+    const data=await res.json();
+    const answer=data.content?.[0]?.text||'Pas de réponse.';
+
+    aiMessages.push({role:'assistant',content:answer});
+    save('aiMessages',aiMessages);
+
+    const loading=$('#aiLoading');
+    if(loading)loading.outerHTML=`<div class="chat-msg ai">${formatAI(answer)}</div>`;
+    if(msgs)msgs.scrollTop=msgs.scrollHeight;
+
+  }catch(e){
+    const loading=$('#aiLoading');
+    if(loading)loading.outerHTML=`<div class="chat-msg ai" style="color:var(--red)">❌ ${e.message}<br><span style="font-size:10px;color:var(--tx3)">Vérifie ta clé API dans les paramètres.</span></div>`;
+    // Remove the failed assistant message attempt
+    if(aiMessages[aiMessages.length-1]?.role==='user'){}// keep user msg
+  }
+};
+
+// ============ CONTEXTUAL TIPS ON DASHBOARD ============
+function getDashboardTips(){
+  const c=compute();const t=TYPES[company?.type]||TYPES.SAS;const tips=[];
+  const now=new Date();const month=now.getMonth();
+
+  // TVA threshold alerts
+  if(company?.regimeTVA==='franchise'){
+    if(c.ca>34400)tips.push({type:'red',text:`CA de ${fmt(c.ca)} > seuil de franchise TVA (34 400 €). Tu dois passer au régime réel de TVA. Art. 293 B du CGI.`});
+    else if(c.ca>30000)tips.push({type:'org',text:`CA de ${fmt(c.ca)} approche le seuil TVA (34 400 €). Anticipe le passage au réel.`});
+  }
+
+  // IS optimization
+  if(c.ben>42500)tips.push({type:'org',text:`Résultat de ${fmt(c.ben)} dépasse le seuil IS réduit (42 500 €). Les bénéfices au-delà sont taxés à 25% au lieu de 15%.`});
+
+  // Salary optimization for SAS/SASU
+  if((company?.type==='SAS'||company?.type==='SASU')&&company?.rem===0&&c.ca>10000)tips.push({type:'blu',text:'Tu ne te verses aucune rémunération. En SAS, un salaire même modeste te donne une protection sociale (maladie, retraite).'});
+
+  // Unpaid invoices
+  if(c.encours>0)tips.push({type:'org',text:`${fmt(c.encours)} de factures impayées. Pense à relancer tes clients — au-delà de 30 jours, tu peux appliquer des pénalités de retard (art. L441-10 C. com.).`});
+
+  // CFE reminder (December)
+  if(month===11)tips.push({type:'pur',text:'Décembre : la CFE (Cotisation Foncière des Entreprises) est due le 15/12. Vérifie ton avis sur impots.gouv.fr.'});
+
+  // IS acomptes
+  if(month===2)tips.push({type:'pur',text:"Mars : 1er acompte d'IS dû le 15/03. Montant = 25% de l'IS du dernier exercice."});
+  if(month===5)tips.push({type:'pur',text:"Juin : 2ème acompte d'IS dû le 15/06."});
+
+  // TVA CA12
+  if(company?.regimeTVA==='reel_simplifie'&&month===4)tips.push({type:'pur',text:'Mai : déclaration annuelle de TVA CA12 à déposer (régime réel simplifié).'});
+
+  // Low treasury
+  if(c.treso<0)tips.push({type:'red',text:`Trésorerie comptable négative (${fmt(c.treso)}). Risque de cessation de paiement — contacte ton banquier.`});
+
+  // URSSAF for TNS
+  if(t.tns&&month%3===0)tips.push({type:'blu',text:'Rappel : en tant que TNS, tes cotisations URSSAF sont dues chaque trimestre (ou mensuellement si tu as opté).'});
+
+  return tips.slice(0,4);
+}
 
 // Re-render with new nav
 render();
