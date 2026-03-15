@@ -610,7 +610,7 @@ function renderDashboard(el){
       </div>
     </div>
     ${bank.accounts.length>0&&bank.accounts[0].monthly.length>1?`
-    <div style="margin-top:14px"><canvas id="chBank" height="120"></canvas></div>`:''}
+    <div style="margin-top:14px"><canvas id="chBank"></canvas></div>`:''}
   </div>`:''}
 
   <div class="gr g4 kpi-grid">
@@ -620,8 +620,8 @@ function renderDashboard(el){
     <div class="cd kpi"><div class="kpi-v" style="color:var(--org)">${fmt(c.encours)}</div><div class="kpi-l">Encours clients</div></div>
   </div>
   <div class="gr g2">
-    <div class="cd"><div class="cd-t">CA vs Dépenses</div><canvas id="ch1" height="180"></canvas></div>
-    <div class="cd"><div class="cd-t">Trésorerie cumulée</div><canvas id="ch2" height="180"></canvas></div>
+    <div class="cd"><div class="cd-t">CA vs Dépenses</div><canvas id="ch1"></canvas></div>
+    <div class="cd"><div class="cd-t">Trésorerie cumulée</div><canvas id="ch2"></canvas></div>
   </div>
   <div class="gr g3">
     <div class="cd"><div class="cd-t">Résultat & IS</div>
@@ -630,7 +630,7 @@ function renderDashboard(el){
       <div style="height:6px;background:var(--bg4);border-radius:3px;margin-top:8px"><div style="height:100%;width:${Math.min(100,Math.max(0,c.ben)/F.ISS*100)}%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:3px"></div></div>
       <div class="cd-s" style="margin-top:4px">Tranche IS 15%</div>
     </div>
-    <div class="cd"><div class="cd-t">Répartition</div><canvas id="ch3" height="160"></canvas></div>
+    <div class="cd"><div class="cd-t">Répartition</div><canvas id="ch3"></canvas></div>
     <div class="cd"><div class="cd-t">Échéances</div>
       <div style="margin-top:8px">
         ${echeance('Factures impayées',c.encours,'var(--org)')}
@@ -654,7 +654,7 @@ function initCharts(c,months,bank){
   if(e1)charts.c1=new Chart(e1,{type:'bar',data:{labels:months,datasets:[{label:'CA',data:caM,backgroundColor:'rgba(99,102,241,.5)',borderRadius:5},{label:'Dépenses',data:depM,backgroundColor:'rgba(239,68,68,.35)',borderRadius:5}]},options:chartOpts()});
   if(e2)charts.c2=new Chart(e2,{type:'line',data:{labels:months,datasets:[{label:'Trésorerie',data:tresoM,borderColor:'#06b6d4',backgroundColor:'rgba(6,182,212,.1)',fill:true,tension:.4}]},options:chartOpts()});
   const mob=window.innerWidth<600;
-  if(e3)charts.c3=new Chart(e3,{type:'doughnut',data:{labels:['Dépenses','Rém.','Charges','IS','Net'],datasets:[{data:[c.dep,c.rem,c.chg,c.is,Math.max(0,c.net)],backgroundColor:['#ef4444','#f59e0b','#3b82f6','#a855f7','#10b981'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:mob,aspectRatio:mob?1.2:undefined,cutout:'60%',plugins:{legend:{labels:{color:'#94a3b8',font:{size:mob?8:10}}}}}});
+  if(e3)charts.c3=new Chart(e3,{type:'doughnut',data:{labels:['Dép.','Rém.','Charges','IS','Net'],datasets:[{data:[c.dep,c.rem,c.chg,c.is,Math.max(0,c.net)],backgroundColor:['#ef4444','#f59e0b','#3b82f6','#a855f7','#10b981'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:true,aspectRatio:mob?1.5:1.4,cutout:'55%',plugins:{legend:{position:mob?'bottom':'right',labels:{color:'#94a3b8',font:{size:mob?9:10},boxWidth:10,padding:mob?6:10}}}}});
   // Bank balance evolution chart
   const eBank=$('#chBank');
   if(eBank&&bank&&bank.accounts.length>0){
@@ -662,12 +662,12 @@ function initCharts(c,months,bank){
     if(acc.monthly.length>1){
       const labels=acc.monthly.map(m=>{const d=m.date;if(!d)return'?';const p=d.split('-');return months[parseInt(p[1])-1]+' '+p[0].slice(2);});
       const data=acc.monthly.map(m=>m.close);
-      charts.cBank=new Chart(eBank,{type:'line',data:{labels,datasets:[{label:'Solde fin de mois',data,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,.08)',fill:true,tension:.3,pointBackgroundColor:data.map(v=>v>=0?'#10b981':'#ef4444'),pointRadius:4,pointHoverRadius:6,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:(ctx)=>fmt2(ctx.raw)}}},scales:{x:{ticks:{color:'#64748b',font:{size:9}},grid:{color:'rgba(37,41,56,.5)'}},y:{ticks:{color:'#64748b',font:{size:9},callback:v=>fmt(v)},grid:{color:'rgba(37,41,56,.5)'}}}}});
+      charts.cBank=new Chart(eBank,{type:'line',data:{labels,datasets:[{label:'Solde fin de mois',data,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,.08)',fill:true,tension:.3,pointBackgroundColor:data.map(v=>v>=0?'#10b981':'#ef4444'),pointRadius:3,pointHoverRadius:5,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:true,aspectRatio:mob?2.5:3,plugins:{legend:{display:false},tooltip:{callbacks:{label:(ctx)=>fmt2(ctx.raw)}}},scales:{x:{ticks:{color:'#64748b',font:{size:mob?7:9},maxRotation:mob?45:0},grid:{display:false}},y:{ticks:{color:'#64748b',font:{size:mob?7:9},maxTicksLimit:4,callback:v=>fmt(v)},grid:{color:'rgba(37,41,56,.3)'}}}}});
     }
   }
 }
 
-function chartOpts(){const mob=window.innerWidth<600;return{responsive:true,maintainAspectRatio:mob,aspectRatio:mob?1.4:undefined,plugins:{legend:{labels:{color:'#94a3b8',font:{size:mob?8:10}}}},scales:{x:{ticks:{color:'#64748b',font:{size:mob?7:9},maxRotation:mob?45:0},grid:{color:'rgba(37,41,56,.5)'}},y:{ticks:{color:'#64748b',font:{size:mob?7:9}},grid:{color:'rgba(37,41,56,.5)'}}}};}
+function chartOpts(){const mob=window.innerWidth<600;return{responsive:true,maintainAspectRatio:true,aspectRatio:mob?2:1.8,plugins:{legend:{labels:{color:'#94a3b8',font:{size:mob?8:10},boxWidth:mob?8:14}}},scales:{x:{ticks:{color:'#64748b',font:{size:mob?7:9},maxRotation:mob?45:0},grid:{display:false}},y:{ticks:{color:'#64748b',font:{size:mob?7:9},maxTicksLimit:mob?4:6},grid:{color:'rgba(37,41,56,.3)'}}}};}
 
 // ============ ÉCRITURES ============
 let eTab='factures',eSubTab='liste';
@@ -1551,15 +1551,27 @@ function renderPrevisionnel(el){
     <div class="cd kpi"><div class="kpi-v" style="color:${tresoM[11]>=0?'var(--cya)':'var(--red)'}">${fmt(tresoM[11])}</div><div class="kpi-l">Tréso. fin d'année</div></div>
     <div class="cd kpi"><div class="kpi-v" style="color:var(--pur)">${caAn>0?fmtP((caAn-depAn-remM*12)/caAn):'–'}</div><div class="kpi-l">Marge prév.</div></div>
   </div>
-  <div class="cd"><div class="cd-t">Évolution prévisionnelle</div><canvas id="chPrev" height="180"></canvas></div>
+  <div class="cd"><div class="cd-t">Évolution prévisionnelle</div><canvas id="chPrev"></canvas></div>
   <div class="cd"><div class="cd-t">Détail mensuel</div>
-  <div class="tbl-wrap"><table><thead><tr><th>Mois</th><th style="text-align:right">CA</th><th style="text-align:right">Dép.</th><th class="hide-mob" style="text-align:right">Charges</th><th style="text-align:right">Résultat</th><th class="hide-mob" style="text-align:right">Tréso.</th></tr></thead><tbody>
+  <!-- Desktop: all 12 months -->
+  <div class="desk-only tbl-wrap"><table><thead><tr><th>Mois</th><th style="text-align:right">CA</th><th style="text-align:right">Dép.</th><th style="text-align:right">Charges</th><th style="text-align:right">Résultat</th><th style="text-align:right">Tréso.</th></tr></thead><tbody>
   ${months.map((m,i)=>{const res=prevCA[i]-prevDep[i]-remM;return`<tr${i>now?' style="opacity:.6"':''}>
-    <td style="font-weight:600;white-space:nowrap">${m}${i>now?' *':''}</td><td style="text-align:right;white-space:nowrap">${fmt(prevCA[i])}</td><td style="text-align:right;white-space:nowrap">${fmt(prevDep[i])}</td><td class="hide-mob" style="text-align:right;white-space:nowrap">${fmt(remM)}</td>
+    <td style="font-weight:600;white-space:nowrap">${m}${i>now?' *':''}</td><td style="text-align:right;white-space:nowrap">${fmt(prevCA[i])}</td><td style="text-align:right;white-space:nowrap">${fmt(prevDep[i])}</td><td style="text-align:right;white-space:nowrap">${fmt(remM)}</td>
     <td style="text-align:right;font-weight:700;white-space:nowrap;color:${res>=0?'var(--grn)':'var(--red)'}">${fmt(res)}</td>
-    <td class="hide-mob" style="text-align:right;font-weight:700;white-space:nowrap;color:${tresoM[i]>=0?'var(--cya)':'var(--red)'}">${fmt(tresoM[i])}</td>
+    <td style="text-align:right;font-weight:700;white-space:nowrap;color:${tresoM[i]>=0?'var(--cya)':'var(--red)'}">${fmt(tresoM[i])}</td>
     </tr>`;}).join('')}
-  </tbody></table></div><p style="font-size:10px;color:var(--tx3);margin-top:8px">* Mois estimés sur la moyenne des mois passés</p></div>
+  </tbody></table></div>
+  <!-- Mobile: compact cards by trimestre -->
+  <div class="mob-only" style="display:none">
+  ${[{l:'T1',m:[0,1,2]},{l:'T2',m:[3,4,5]},{l:'T3',m:[6,7,8]},{l:'T4',m:[9,10,11]}].map(q=>{
+    const qCA=q.m.reduce((s,i)=>s+prevCA[i],0);const qDep=q.m.reduce((s,i)=>s+prevDep[i],0);const qRes=qCA-qDep-remM*3;const future=q.m[0]>now;
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--brd);${future?'opacity:.6':''}">
+      <div><div style="font-size:13px;font-weight:700">${q.l}${future?' *':''}</div>
+      <div style="font-size:10px;color:var(--tx3)">CA <span style="color:var(--grn)">${fmt(qCA)}</span> — Dép. <span style="color:var(--red)">${fmt(qDep)}</span></div></div>
+      <div style="font-size:16px;font-weight:800;color:${qRes>=0?'var(--grn)':'var(--red)'}">${fmt(qRes)}</div>
+    </div>`;}).join('')}
+  </div>
+  <p style="font-size:10px;color:var(--tx3);margin-top:8px">* Estimé sur la moyenne des mois passés</p></div>
   ${c.ca>FISCAL_ALERT_TVA?`<div class="al al-w">⚠️ CA en approche du seuil de franchise TVA (${fmt(37500)}). Anticipez le passage au réel.</div>`:''}
   ${tresoM.some(t=>t<0)?`<div class="al al-w">⚠️ Trésorerie négative prévisionnelle détectée. Anticipez un financement.</div>`:''}`;
   setTimeout(()=>{
