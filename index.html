@@ -492,6 +492,13 @@ function renderWizard(){
             ${wizResult.capital?`<div style="font-size:12px"><b>Capital:</b> ${fmt(wizResult.capital)}</div>`:''}
             <div style="font-size:12px"><b>État:</b> <span class="tg ${wizResult.etat==='A'||wizResult.etat==='Actif'?'t-grn':'t-red'}">${wizResult.etat==='A'?'Actif':wizResult.etat||'NC'}</span></div>
           </div>
+          <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--acc2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Paramètres déduits automatiquement</div>
+            <div style="font-size:12px"><b>Régime fiscal:</b> <span class="tg ${wizForm.regime==='is'?'t-pur':'t-org'}">${wizForm.regime==='is'?'IS (Impôt sur les Sociétés)':'IR (Impôt sur le Revenu)'}</span></div>
+            <div style="font-size:12px"><b>TVA:</b> <span class="tg t-blu">${{franchise:'Franchise en base',exoneree:'Exonéré (art. 261)',reel_simplifie:'Réel simplifié',reel_normal:'Réel normal'}[wizForm.regimeTVA]||wizForm.regimeTVA}</span></div>
+            <div style="font-size:12px"><b>Activité:</b> ${{services:'Services',ventes:'Ventes de marchandises',liberal:'Profession libérale',mixte:'Mixte'}[wizForm.activite]||wizForm.activite}</div>
+            <div style="font-size:10px;color:var(--tx3);margin-top:4px">Tu pourras modifier tout ça à l'étape suivante</div>
+          </div>
           ${wizResult.dirigeants&&wizResult.dirigeants.length>0?`
             <div style="margin-top:12px;font-size:12px"><b>Dirigeants :</b></div>
             ${wizResult.dirigeants.slice(0,3).map(d=>`<div style="font-size:12px;padding:4px 0;color:var(--tx2)">• ${d.nom||d.prenom||''} ${d.prenom||''} — <i>${d.qualite||d.fonction||''}</i></div>`).join('')}
@@ -571,6 +578,33 @@ window.wizAutoLookup=async()=>{
     wizForm.ape=wizResult.ape||wizForm.ape;
     wizForm.type=wizResult.type||wizForm.type;
     if(wizResult.capital)wizForm.capital=wizResult.capital;
+
+    // Auto-deduce fiscal regime from type
+    const tp=wizForm.type;
+    if(tp==='EURL'||tp==='EI'||tp==='MICRO')wizForm.regime='ir';
+    else wizForm.regime='is';
+
+    // Auto-deduce TVA from APE code
+    const ape=(wizForm.ape||'').replace(/[.\s]/g,'');
+    // Formation professionnelle (8559A, 8559B, 8560Z) → exonéré TVA art. 261-4-4°
+    if(/^855[9]|^8560/.test(ape))wizForm.regimeTVA='exoneree';
+    // Santé (86xx), enseignement (85xx hors formation pro) → often franchise
+    else if(/^86/.test(ape))wizForm.regimeTVA='franchise';
+    // Micro-entrepreneur → franchise par défaut
+    else if(tp==='MICRO')wizForm.regimeTVA='franchise';
+    // Others: réel simplifié by default (already set)
+
+    // Auto-deduce activité from APE
+    if(/^47|^45|^46/.test(ape))wizForm.activite='ventes'; // Commerce
+    else if(/^69|^70|^71|^72|^73|^74/.test(ape))wizForm.activite='liberal'; // Professions libérales
+    else wizForm.activite='services';
+
+    // Auto-set rem to 0 for new companies (will be configured later)
+    if(wizResult.dateCreation){
+      const created=new Date(wizResult.dateCreation);
+      const monthsOld=(new Date()-created)/(1000*60*60*24*30);
+      if(monthsOld<6)wizForm.rem=0; // New company, probably no salary yet
+    }
   }catch(e){wizError=e.message;}
   wizLoading=false;renderWizard();
 };
