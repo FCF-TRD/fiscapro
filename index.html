@@ -1735,6 +1735,7 @@ render=function(){
       ${navItem('simul','📊','Simulateurs')}
       ${navItem('veille','📰','Veille fiscale')}
       <div class="nav-s">Réglages</div>
+      ${navItem('statuts','📜','Mes Statuts')}
       ${navItem('settings','⚙️','Paramètres société')}
       ${navItem('import','📥','Import bancaire')}
     </nav>
@@ -1761,6 +1762,7 @@ renderPage=function(){
     case'agents':renderAgents(pg);break;
     case'simul':renderSimul(pg);break;
     case'veille':renderVeille(pg);break;
+    case'statuts':renderStatuts(pg);break;
     case'settings':renderSettings(pg);break;
     case'import':renderImportBancaire(pg);break;
   }
@@ -2350,6 +2352,244 @@ window.integrateReceipts=()=>{
 window.removeReceipt=(i)=>{
   const receipts=load('ocrReceipts',[]);
   receipts.splice(i,1);save('ocrReceipts',receipts);renderPage();
+};
+
+// ============ MES STATUTS ============
+let statutsData=load('statutsData',null);
+
+function renderStatuts(el){
+  el.innerHTML=`
+  <div class="top"><div><h2>📜 Mes Statuts</h2><div class="top-s">Importe tes statuts pour configurer automatiquement ta société</div></div></div>
+
+  <div class="cd">
+    <div class="dz" id="statutsDZ" onclick="document.getElementById('statutsFile').click()"
+      ondragover="event.preventDefault();this.style.borderColor='var(--acc)';this.style.background='rgba(99,102,241,.06)'"
+      ondrop="event.preventDefault();this.style.borderColor='';this.style.background='';handleStatuts(event.dataTransfer.files[0])"
+      ondragleave="this.style.borderColor='';this.style.background=''">
+      <input type="file" id="statutsFile" accept=".pdf,.txt" style="display:none" onchange="handleStatuts(this.files[0])">
+      <div style="font-size:48px;margin-bottom:10px">📜</div>
+      <div style="font-size:16px;font-weight:800;margin-bottom:6px">Glisse tes statuts ici</div>
+      <div style="font-size:12px;color:var(--tx3)">PDF ou texte — Les infos clés seront extraites automatiquement</div>
+    </div>
+    <div id="statutsStatus" style="margin-top:12px"></div>
+  </div>
+
+  ${statutsData?`
+  <div class="cd" style="margin-top:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div class="cd-t" style="margin-bottom:0">Informations extraites</div>
+      <div style="display:flex;gap:6px">
+        <button class="bt bt-g sm" onclick="applyStatuts()">✅ Appliquer aux paramètres</button>
+        <button class="bt bt-d sm" onclick="statutsData=null;save('statutsData',null);renderPage()">✕</button>
+      </div>
+    </div>
+
+    ${renderStatutsFields()}
+  </div>
+
+  ${statutsData._rawText?`
+  <div class="cd" style="margin-top:4px">
+    <div class="cd-t" style="cursor:pointer" onclick="this.nextElementSibling.classList.toggle('hide')">📄 Texte brut extrait <span style="font-size:10px;color:var(--tx3)">(cliquer pour afficher/masquer)</span></div>
+    <div class="hide" style="max-height:300px;overflow-y:auto;padding:10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--tx2);line-height:1.6;white-space:pre-wrap;font-family:monospace">${(statutsData._rawText||'').substring(0,5000)}</div>
+  </div>`:''}
+  `:''}`;
+}
+
+function renderStatutsFields(){
+  const d=statutsData;if(!d)return'';
+  const fields=[
+    {k:'denomination',l:'Dénomination sociale',icon:'🏢'},
+    {k:'forme',l:'Forme juridique',icon:'📋'},
+    {k:'capital',l:'Capital social',icon:'💰',fmt:v=>v?v+' €':'-'},
+    {k:'siege',l:'Siège social',icon:'📍'},
+    {k:'objet',l:'Objet social',icon:'🎯'},
+    {k:'duree',l:'Durée de la société',icon:'⏳'},
+    {k:'exercice',l:'Exercice social',icon:'📅'},
+    {k:'dirigeant',l:'Dirigeant (Président/Gérant)',icon:'👤'},
+    {k:'associes',l:'Associé(s)',icon:'👥'},
+    {k:'siren',l:'SIREN / RCS',icon:'🔢'},
+    {k:'nda',l:'N° de déclaration d\'activité',icon:'📝'},
+    {k:'dateImmat',l:'Date d\'immatriculation',icon:'📆'},
+    {k:'cloture',l:'Date de clôture',icon:'🔒'},
+    {k:'repartition',l:'Répartition du capital',icon:'📊'},
+  ];
+  return`<div style="display:grid;gap:8px">
+  ${fields.filter(f=>d[f.k]).map(f=>`
+    <div style="display:flex;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:8px;align-items:start">
+      <span style="font-size:16px;flex-shrink:0">${f.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">${f.l}</div>
+        <div style="font-size:13px;font-weight:600;word-break:break-word">${f.fmt?f.fmt(d[f.k]):d[f.k]}</div>
+      </div>
+      <span class="tg t-grn" style="flex-shrink:0">Détecté</span>
+    </div>`).join('')}
+  ${fields.filter(f=>!d[f.k]).length>0?`
+    <div style="padding:8px 12px;color:var(--tx3);font-size:11px">
+      Non détecté : ${fields.filter(f=>!d[f.k]).map(f=>f.l).join(', ')}
+    </div>`:''}
+  </div>`;
+}
+
+window.handleStatuts=async(file)=>{
+  if(!file)return;
+  const status=$('#statutsStatus');
+  status.innerHTML=`<div class="al al-i"><span class="spin" style="display:inline-block">⏳</span> Analyse de ${file.name}...</div>`;
+
+  try{
+    let text='';
+
+    if(file.type==='application/pdf'||file.name.endsWith('.pdf')){
+      // Load pdf.js
+      if(!window.pdfjsLib){
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        document.head.appendChild(s);
+        await new Promise((ok,ko)=>{s.onload=ok;s.onerror=ko;setTimeout(ko,15000);});
+        pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+      const buf=await file.arrayBuffer();
+      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      for(let i=1;i<=pdf.numPages;i++){
+        const page=await pdf.getPage(i);
+        const tc=await page.getTextContent();
+        const rows={};
+        tc.items.forEach(it=>{if(!it.str||!it.str.trim())return;const y=Math.round(it.transform[5]);if(!rows[y])rows[y]=[];rows[y].push({x:it.transform[4],str:it.str});});
+        Object.keys(rows).map(Number).sort((a,b)=>b-a).forEach(y=>{text+=rows[y].sort((a,b)=>a.x-b.x).map(it=>it.str).join(' ')+'\n';});
+      }
+    }else{
+      text=await file.text();
+    }
+
+    if(text.length<50){status.innerHTML=`<div class="al al-w">⚠️ Pas assez de texte extrait. Vérifie que le PDF n'est pas un scan image.</div>`;return;}
+
+    // Parse statuts
+    statutsData=parseStatuts(text);
+    statutsData._rawText=text.substring(0,8000);
+    statutsData._file=file.name;
+    save('statutsData',statutsData);
+
+    const found=Object.keys(statutsData).filter(k=>!k.startsWith('_')&&statutsData[k]).length;
+    status.innerHTML=`<div class="al al-s">✅ <b>${file.name}</b> analysé — ${found} informations extraites</div>`;
+    renderPage();
+
+  }catch(e){
+    status.innerHTML=`<div class="al al-w">❌ Erreur : ${e.message}</div>`;
+  }
+};
+
+function parseStatuts(text){
+  const d={};
+  const t=text.replace(/\r/g,'');
+  const clean=s=>(s||'').replace(/\s+/g,' ').trim();
+
+  // Dénomination
+  let m=t.match(/d[ée]nomination\s+(?:sociale\s+)?est\s*:\s*[«"]?\s*([A-Za-zÀ-ü][A-Za-zÀ-ü\s\-\.&']{1,50})/i);
+  if(m)d.denomination=clean(m[1]).replace(/[«»""\n].*/,'').trim();
+  if(!d.denomination){m=t.match(/[«"]\s*([A-Za-zÀ-ü][A-Za-zÀ-ü\s\-\.&']{1,40}?)\s*[»"]\s*\n/);if(m)d.denomination=clean(m[1]);}
+  if(!d.denomination){m=t.match(/(?:d[ée]nomination|raison\s*sociale)\s*(?:sociale)?\s*[:\.]\s*[«"]?\s*([A-Za-zÀ-ü][A-Za-zÀ-ü\s\-\.&']{2,40})/i);if(m)d.denomination=clean(m[1]).replace(/[«»""]/g,'').replace(/\n.*/,'').trim();}
+
+  // Forme juridique
+  if(/soci[ée]t[ée]\s+par\s+actions\s+simplifi[ée]e\s+unipersonnelle|SASU/i.test(t))d.forme='SASU';
+  else if(/soci[ée]t[ée]\s+par\s+actions\s+simplifi[ée]e|SAS(?:\s|,|\.|$)/i.test(t))d.forme='SAS';
+  else if(/soci[ée]t[ée]\s+[àa]\s+responsabilit[ée]\s+limit[ée]e\s+(?:unipersonnelle|à\s+associ[ée]\s+unique)|EURL/i.test(t))d.forme='EURL';
+  else if(/soci[ée]t[ée]\s+[àa]\s+responsabilit[ée]\s+limit[ée]e|SARL/i.test(t))d.forme='SARL';
+  else if(/soci[ée]t[ée]\s+civile\s+immobili[èe]re|SCI/i.test(t))d.forme='SCI';
+  else if(/soci[ée]t[ée]\s+anonyme|SA(?:\s|,|$)/i.test(t))d.forme='SA';
+  else if(/entreprise\s+individuelle|EI/i.test(t))d.forme='EI';
+
+  // Capital (handle "200,00 €" -> 200)
+  m=t.match(/capital\s*(?:social)?\s*(?:est\s+fix[ée]\s+[àa]|de|:)\s*([\d\s.,]+)\s*(?:euros?|€)/i);
+  if(m){const raw=m[1].replace(/\s/g,'');d.capital=Math.round(parseFloat(raw.replace(',','.'))||0);}
+  if(!d.capital){m=t.match(/capital\s*[:\.]\s*([\d\s.,]+)\s*(?:euros?|€)/i);if(m){const raw=m[1].replace(/\s/g,'');d.capital=Math.round(parseFloat(raw.replace(',','.'))||0);}}
+
+  // Siège social
+  m=t.match(/si[èe]ge\s*(?:social)?\s*(?:est\s+(?:fix[ée]|[ée]tabli)\s*(?:[àa])?\s*|:)\s*(.{10,120}?)(?:\.\s*\n|Article|ARTICLE|\n\s*\n)/i);
+  if(m)d.siege=clean(m[1]).replace(/^[,:\s]+/,'').replace(/\s*[Ii]l\s+(?:pourra|peut).*/,'');
+  if(!d.siege){m=t.match(/si[èe]ge\s*(?:social)?\s*(?:est\s+fix[ée])?\s*[:]\s*\n?\s*(.{10,100})/i);if(m)d.siege=clean(m[1]).replace(/\s*[Ii]l\s+(?:pourra|peut).*/,'');}
+  // Try extracting postal code + city from siege
+  if(d.siege){const cp=d.siege.match(/(\d{5})\s+([A-ZÀ-Üa-zà-ü\s\-]+)/);if(cp)d._cp=cp[1],d._ville=clean(cp[2]);}
+
+  // Objet social
+  m=t.match(/objet\s*(?:social)?\s*[:\.]\s*(?:la\s+soci[ée]t[ée]\s+a\s+pour\s+objet\s*:?\s*)?([\s\S]{20,500}?)(?:Article|ARTICLE|\n\s*\n)/i);
+  if(m)d.objet=clean(m[1]).substring(0,200);
+
+  // Durée
+  m=t.match(/dur[ée]e\s*(?:de\s+la\s+soci[ée]t[ée])?\s*(?:est\s+fix[ée]e?\s*[àa]|:)\s*(\d+)\s*(?:ans?|ann[ée]es?)/i);
+  if(m)d.duree=m[1]+' ans';
+
+  // Exercice social
+  m=t.match(/exercice\s*(?:social|comptable)?\s*(?:commence|d[ée]bute|court|:)\s*(?:le\s+)?(\d{1,2}(?:er)?\s*\w+)/i);
+  if(m)d.exercice=clean(m[1]);
+  m=t.match(/cl[oô]ture?\s*(?:de\s+l.exercice|annuelle)?\s*(?:est\s+fix[ée]e?\s*au|le|:)\s*(\d{1,2}\s*\w+\s*(?:de\s+chaque\s+ann[ée]e)?)/i);
+  if(m)d.cloture=clean(m[1]);
+  if(!d.cloture){m=t.match(/(\d{1,2})\s*(janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre)\s*(?:de\s+chaque\s+ann[ée]e)/i);if(m)d.cloture=m[1]+' '+m[2];}
+
+  // Dirigeant / Président / Gérant
+  m=t.match(/(?:pr[ée]sident|g[ée]rant|directeur\s+g[ée]n[ée]ral)\s*[:\.]\s*(?:M(?:onsieur|me|adame)?\.?\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü\-]+){1,3})/i);
+  if(m)d.dirigeant=clean(m[1]);
+  if(!d.dirigeant){m=t.match(/(?:est\s+nomm[ée]\s+(?:en\s+qualit[ée]\s+de\s+)?(?:pr[ée]sident|g[ée]rant))\s*,?\s*(?:M(?:onsieur|me)?\.?\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü\-]+){1,3})/i);if(m)d.dirigeant=clean(m[1]);}
+
+  // Associés
+  const assocMatches=[...t.matchAll(/(?:associ[ée]|actionnaire|fondateur)\s*(?:unique)?\s*[:\.]\s*(?:M(?:onsieur|me)?\.?\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü\-]+){1,3})/gi)];
+  if(assocMatches.length>0)d.associes=assocMatches.map(a=>clean(a[1])).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
+
+  // SIREN / RCS
+  m=t.match(/(?:SIREN|RCS)\s*(?:de\s+\w+)?\s*[:n°]?\s*(\d[\d\s]{7,15})/i);
+  if(m)d.siren=clean(m[1]).replace(/\s/g,'');
+  if(!d.siren){m=t.match(/immatricul[ée]e?\s+(?:au\s+)?(?:RCS|registre)\s+(?:de\s+)?(\w+)\s+(?:sous\s+le\s+(?:num[ée]ro|n°)\s+)?(\d[\d\s]{7,15})/i);if(m)d.siren=clean(m[2]).replace(/\s/g,'');}
+
+  // N° déclaration d'activité (organismes de formation)
+  m=t.match(/(?:d[ée]claration\s+d.activit[ée]|NDA|num[ée]ro\s+d.activit[ée])\s*[:n°]?\s*(\d[\d\s]{8,16})/i);
+  if(m)d.nda=clean(m[1]).replace(/\s/g,'');
+
+  // Date immatriculation
+  m=t.match(/immatricul[ée]e?\s+(?:le\s+)?(\d{1,2}[\s/\.\-]\d{1,2}[\s/\.\-]\d{2,4})/i);
+  if(m)d.dateImmat=clean(m[1]);
+  if(!d.dateImmat){m=t.match(/(?:constitu[ée]e?\s+le|cr[ée][ée]e?\s+le|en\s+date\s+du)\s+(\d{1,2}[\s/\.\-]\d{1,2}[\s/\.\-]\d{2,4})/i);if(m)d.dateImmat=clean(m[1]);}
+
+  // Répartition du capital
+  const repartMatches=[...t.matchAll(/(\d+)\s*(?:actions?|parts?\s*sociales?)\s*(?:de\s+\w+\s+)?(?:d.une?\s+valeur\s+(?:nominale\s+)?de\s+)?([\d.,]+)\s*(?:euros?|€)/gi)];
+  if(repartMatches.length>0)d.repartition=repartMatches.map(r=>`${r[1]} parts × ${r[2]} €`).join(', ');
+  if(!d.repartition){m=t.match(/divis[ée]\s+en\s+(\d+)\s+(?:actions?|parts?)\s+(?:(?:sociales?\s+)?(?:d.une?\s+)?(?:valeur\s+)?(?:nominale\s+)?(?:de\s+)?)?([\d.,]+)\s*(?:euros?|€)/i);if(m)d.repartition=`${m[1]} parts × ${m[2]} €`;}
+
+  return d;
+}
+
+window.applyStatuts=()=>{
+  if(!statutsData)return;
+  const d=statutsData;
+  let changes=[];
+
+  if(d.denomination&&d.denomination!==company.nom){company.nom=d.denomination;changes.push('Nom');}
+  if(d.forme){
+    const typeMap={SAS:'SAS',SASU:'SASU',SARL:'SARL',EURL:'EURL',SA:'SA',EI:'EI',SCI:'SARL'};
+    const newType=typeMap[d.forme];
+    if(newType&&newType!==company.type){company.type=newType;changes.push('Forme juridique → '+d.forme);}
+  }
+  if(d.capital&&d.capital!==company.capital){company.capital=d.capital;changes.push('Capital → '+d.capital+' €');}
+  if(d.siege&&d.siege!==company.adresse){company.adresse=d.siege;changes.push('Adresse');}
+  if(d.siren&&d.siren!==company.siren){company.siren=d.siren;changes.push('SIREN');}
+  if(d.dateImmat){
+    const p=d.dateImmat.replace(/\s/g,'').split(/[\/\.\-]/);
+    if(p.length===3){
+      let y=p[2];if(y.length===2)y='20'+y;
+      const dateStr=y+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');
+      if(dateStr!==company.dateCreation){company.dateCreation=dateStr;changes.push('Date création');}
+    }
+  }
+  if(d.dirigeant){company.dirigeant=d.dirigeant;changes.push('Dirigeant → '+d.dirigeant);}
+  if(d.objet){company.objetSocial=d.objet;changes.push('Objet social');}
+  if(d.cloture){company.dateCloture=d.cloture;changes.push('Clôture → '+d.cloture);}
+  if(d.nda){company.nda=d.nda;changes.push('NDA → '+d.nda);}
+
+  persist();
+
+  if(changes.length>0){
+    alert('✅ '+changes.length+' paramètres mis à jour :\n\n• '+changes.join('\n• '));
+    render();
+  }else{
+    alert('Aucun nouveau paramètre à appliquer — tout est déjà à jour.');
+  }
 };
 
 // ============ ASSISTANT IA COMPTABLE ============
