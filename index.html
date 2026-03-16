@@ -2400,18 +2400,22 @@ function renderStatutsFields(){
   const fields=[
     {k:'denomination',l:'Dénomination sociale',icon:'🏢'},
     {k:'forme',l:'Forme juridique',icon:'📋'},
-    {k:'capital',l:'Capital social',icon:'💰',fmt:v=>v?v+' €':'-'},
+    {k:'capital',l:'Capital social',icon:'💰',fmt:v=>v?v.toLocaleString('fr-FR')+' €':'-'},
     {k:'siege',l:'Siège social',icon:'📍'},
-    {k:'objet',l:'Objet social',icon:'🎯'},
-    {k:'duree',l:'Durée de la société',icon:'⏳'},
-    {k:'exercice',l:'Exercice social',icon:'📅'},
     {k:'dirigeant',l:'Dirigeant (Président/Gérant)',icon:'👤'},
     {k:'associes',l:'Associé(s)',icon:'👥'},
-    {k:'siren',l:'SIREN / RCS',icon:'🔢'},
-    {k:'nda',l:'N° de déclaration d\'activité',icon:'📝'},
-    {k:'dateImmat',l:'Date d\'immatriculation',icon:'📆'},
+    {k:'regimeImposition',l:'Régime d\'imposition',icon:'🏛️'},
+    {k:'regimeTVA',l:'Régime de TVA',icon:'💶'},
+    {k:'objet',l:'Objet social',icon:'🎯'},
+    {k:'exercice',l:'Exercice social',icon:'📅'},
     {k:'cloture',l:'Date de clôture',icon:'🔒'},
+    {k:'duree',l:'Durée de la société',icon:'⏳'},
+    {k:'siren',l:'SIREN / RCS',icon:'🔢'},
+    {k:'nda',l:'N° déclaration d\'activité',icon:'📝'},
+    {k:'dateImmat',l:'Date d\'immatriculation',icon:'📆'},
     {k:'repartition',l:'Répartition du capital',icon:'📊'},
+    {k:'cac',l:'Commissaire aux comptes',icon:'🔍'},
+    {k:'reserveLegale',l:'Réserve légale',icon:'🏦'},
   ];
   return`<div style="display:grid;gap:8px">
   ${fields.filter(f=>d[f.k]).map(f=>`
@@ -2517,21 +2521,49 @@ function parseStatuts(text){
   m=t.match(/dur[ée]e\s*(?:de\s+la\s+soci[ée]t[ée])?\s*(?:est\s+fix[ée]e?\s*[àa]|:)\s*(\d+)\s*(?:ans?|ann[ée]es?)/i);
   if(m)d.duree=m[1]+' ans';
 
-  // Exercice social
-  m=t.match(/exercice\s*(?:social|comptable)?\s*(?:commence|d[ée]bute|court|:)\s*(?:le\s+)?(\d{1,2}(?:er)?\s*\w+)/i);
-  if(m)d.exercice=clean(m[1]);
-  m=t.match(/cl[oô]ture?\s*(?:de\s+l.exercice|annuelle)?\s*(?:est\s+fix[ée]e?\s*au|le|:)\s*(\d{1,2}\s*\w+\s*(?:de\s+chaque\s+ann[ée]e)?)/i);
+  // Exercice social — "commence le 1 janvier et finit le 31 décembre"
+  m=t.match(/exercice\s*(?:social)?\s*(?:a\s+une\s+dur[ée]e.*?)?(?:commence|d[ée]bute)\s+(?:le\s+)?(\d{1,2}(?:er)?\s*\w+)\s+(?:et\s+)?(?:finit?|se\s+termine)\s+(?:le\s+)?(\d{1,2}\s*\w+)/i);
+  if(m){d.exercice=clean(m[1])+' au '+clean(m[2]);}
+  if(!d.exercice){m=t.match(/exercice\s*(?:social|comptable)?\s*(?:commence|d[ée]bute|court|:)\s*(?:le\s+)?(\d{1,2}(?:er)?\s*\w+)/i);if(m)d.exercice=clean(m[1]);}
+  // Clôture
+  m=t.match(/(?:se\s+termine(?:ra)?\s+le|finit?\s+le|cl[oô]tur[ée]?\s+le)\s+(\d{1,2}\s*(?:janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre))/i);
   if(m)d.cloture=clean(m[1]);
   if(!d.cloture){m=t.match(/(\d{1,2})\s*(janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre)\s*(?:de\s+chaque\s+ann[ée]e)/i);if(m)d.cloture=m[1]+' '+m[2];}
+  if(!d.cloture&&d.exercice){const em=d.exercice.match(/au\s+(.+)/);if(em)d.cloture=em[1];}
 
-  // Dirigeant / Président / Gérant
-  m=t.match(/(?:pr[ée]sident|g[ée]rant|directeur\s+g[ée]n[ée]ral)\s*[:\.]\s*(?:M(?:onsieur|me|adame)?\.?\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü\-]+){1,3})/i);
+  // Dirigeant / Président / Gérant — try "Monsieur X Y" first (founder line)
+  m=t.match(/(?:LE\s+SOUSSIGN[ÉE]|ENTRE\s+LES\s+SOUSSIGN[ÉE]S)[\s\S]{0,20}?(?:M(?:onsieur|adame|me)?\.?\s+)([A-ZÀ-Ü][a-zà-ü]+\s+[A-ZÀ-Ü][a-zà-ü\-]+)/i);
   if(m)d.dirigeant=clean(m[1]);
+  if(!d.dirigeant){m=t.match(/(?:pr[ée]sident|g[ée]rant|directeur\s+g[ée]n[ée]ral)\s*[:\.]\s*(?:M(?:onsieur|me|adame)?\.?\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü\-]+){1,3})/i);if(m)d.dirigeant=clean(m[1]);}
   if(!d.dirigeant){m=t.match(/(?:est\s+nomm[ée]\s+(?:en\s+qualit[ée]\s+de\s+)?(?:pr[ée]sident|g[ée]rant))\s*,?\s*(?:M(?:onsieur|me)?\.?\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü\-]+){1,3})/i);if(m)d.dirigeant=clean(m[1]);}
 
   // Associés
   const assocMatches=[...t.matchAll(/(?:associ[ée]|actionnaire|fondateur)\s*(?:unique)?\s*[:\.]\s*(?:M(?:onsieur|me)?\.?\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü\-]+){1,3})/gi)];
   if(assocMatches.length>0)d.associes=assocMatches.map(a=>clean(a[1])).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
+  if(!d.associes&&d.dirigeant&&/unipersonnelle|SASU|EURL|actionnaire\s+unique/i.test(t))d.associes=d.dirigeant+' (associé unique)';
+
+  // Régime d'imposition (déduit de la forme juridique)
+  if(d.forme){
+    if(['SAS','SASU','SA','SARL'].includes(d.forme))d.regimeImposition='IS (Impôt sur les Sociétés) — par défaut pour les '+d.forme;
+    else if(d.forme==='EURL')d.regimeImposition='IR (Impôt sur le Revenu) — par défaut pour EURL, option IS possible';
+    else if(d.forme==='EI')d.regimeImposition='IR (Impôt sur le Revenu) — BIC ou BNC selon activité';
+    else if(d.forme==='SCI')d.regimeImposition='IR (Impôt sur le Revenu) — translucide par défaut, option IS possible';
+  }
+  // Check if statuts mention option IR/IS
+  if(/option\s+(?:pour\s+)?(?:l.)?imp[oô]t\s+sur\s+le\s+revenu|soumise?\s+[àa]\s+l.IR/i.test(t))d.regimeImposition='IR (Impôt sur le Revenu) — option exercée';
+  if(/soumise?\s+[àa]\s+l.imp[oô]t\s+sur\s+les\s+soci[ée]t[ée]s|assujettie?\s+[àa]\s+l.IS/i.test(t))d.regimeImposition='IS (Impôt sur les Sociétés)';
+
+  // Régime TVA déduit
+  if(/franchise\s+(?:en\s+)?base\s+(?:de\s+)?TVA|exon[ée]r[ée]e?\s+de\s+TVA|art(?:icle)?\.?\s*293\s*B/i.test(t))d.regimeTVA='Franchise en base (art. 293 B CGI)';
+  if(/art(?:icle)?\.?\s*261[\s\-]4[\s\-]4|exon[ée]ration\s+(?:de\s+)?TVA\s+(?:sur\s+)?(?:les\s+)?formations?/i.test(t))d.regimeTVA='Exonéré TVA (art. 261-4-4° CGI — formation)';
+
+  // Commissaire aux comptes
+  if(/commissaire\s+aux\s+comptes.*?nomm[ée]/i.test(t))d.cac='Oui (CAC nommé)';
+  else if(/commissaire\s+aux\s+comptes/i.test(t))d.cac='Non obligatoire (sous les seuils)';
+
+  // Réserve légale
+  m=t.match(/r[ée]serve\s+l[ée]gale.*?(\d+)\s*(?:pour\s+cent|%)/i);
+  if(m)d.reserveLegale=m[1]+'%';
 
   // SIREN / RCS
   m=t.match(/(?:SIREN|RCS)\s*(?:de\s+\w+)?\s*[:n°]?\s*(\d[\d\s]{7,15})/i);
@@ -2558,37 +2590,89 @@ function parseStatuts(text){
 window.applyStatuts=()=>{
   if(!statutsData)return;
   const d=statutsData;
-  let changes=[];
+  const changes=[];
+  const upd=(field,val,label,oldVal)=>{
+    if(!val)return;
+    const prev=oldVal!==undefined?oldVal:company[field];
+    if(val===prev)return;
+    const old=prev||'(vide)';
+    company[field]=val;
+    changes.push({label,old:String(old),new:String(val)});
+  };
 
-  if(d.denomination&&d.denomination!==company.nom){company.nom=d.denomination;changes.push('Nom');}
+  upd('nom',d.denomination,'Dénomination sociale');
   if(d.forme){
     const typeMap={SAS:'SAS',SASU:'SASU',SARL:'SARL',EURL:'EURL',SA:'SA',EI:'EI',SCI:'SARL'};
     const newType=typeMap[d.forme];
-    if(newType&&newType!==company.type){company.type=newType;changes.push('Forme juridique → '+d.forme);}
+    if(newType)upd('type',newType,'Forme juridique',company.type);
   }
-  if(d.capital&&d.capital!==company.capital){company.capital=d.capital;changes.push('Capital → '+d.capital+' €');}
-  if(d.siege&&d.siege!==company.adresse){company.adresse=d.siege;changes.push('Adresse');}
-  if(d.siren&&d.siren!==company.siren){company.siren=d.siren;changes.push('SIREN');}
+  upd('capital',d.capital,'Capital social');
+  upd('adresse',d.siege,'Siège social');
+  upd('siren',d.siren,'SIREN');
+  upd('dirigeant',d.dirigeant,'Dirigeant');
+  upd('objetSocial',d.objet,'Objet social');
+  upd('dateCloture',d.cloture,'Date de clôture');
+  upd('nda',d.nda,'N° déclaration d\'activité');
+  upd('duree',d.duree,'Durée');
+  upd('exerciceSocial',d.exercice,'Exercice social');
+
+  // Régime d'imposition
+  if(d.regimeImposition){
+    const isIR=/^IR/.test(d.regimeImposition);
+    const newRegime=isIR?'ir':'is';
+    if(newRegime!==company.regime){
+      changes.push({label:'Régime d\'imposition',old:company.regime==='ir'?'IR':'IS',new:isIR?'IR':'IS'});
+      company.regime=newRegime;
+    }
+  }
+
+  // Régime TVA
+  if(d.regimeTVA){
+    let newTVA='reel_simplifie';
+    if(/franchise/i.test(d.regimeTVA))newTVA='franchise';
+    else if(/exon[ée]r/i.test(d.regimeTVA))newTVA='exoneree';
+    if(newTVA!==company.regimeTVA){
+      changes.push({label:'Régime TVA',old:company.regimeTVA||'(vide)',new:d.regimeTVA});
+      company.regimeTVA=newTVA;
+    }
+  }
+
+  // Date d'immatriculation
   if(d.dateImmat){
     const p=d.dateImmat.replace(/\s/g,'').split(/[\/\.\-]/);
     if(p.length===3){
       let y=p[2];if(y.length===2)y='20'+y;
       const dateStr=y+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');
-      if(dateStr!==company.dateCreation){company.dateCreation=dateStr;changes.push('Date création');}
+      upd('dateCreation',dateStr,'Date de création');
     }
   }
-  if(d.dirigeant){company.dirigeant=d.dirigeant;changes.push('Dirigeant → '+d.dirigeant);}
-  if(d.objet){company.objetSocial=d.objet;changes.push('Objet social');}
-  if(d.cloture){company.dateCloture=d.cloture;changes.push('Clôture → '+d.cloture);}
-  if(d.nda){company.nda=d.nda;changes.push('NDA → '+d.nda);}
 
   persist();
 
   if(changes.length>0){
-    alert('✅ '+changes.length+' paramètres mis à jour :\n\n• '+changes.join('\n• '));
-    render();
+    // Show changes in a modal
+    const m=document.createElement('div');m.className='modal-bg';m.onclick=e=>{if(e.target===m){m.remove();render();}};
+    m.innerHTML=`<div class="modal fade">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3>✅ ${changes.length} paramètre${changes.length>1?'s':''} mis à jour</h3>
+        <button class="bt bt-s sm" onclick="this.closest('.modal-bg').remove();render();">OK</button>
+      </div>
+      <div style="display:grid;gap:6px">
+      ${changes.map(c=>`
+        <div style="padding:10px 12px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--grn)">
+          <div style="font-size:11px;font-weight:700;color:var(--grn);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${c.label}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:12px;color:var(--tx3);text-decoration:line-through;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.old}</span>
+            <span style="color:var(--grn)">→</span>
+            <span style="font-size:13px;font-weight:700;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.new}</span>
+          </div>
+        </div>`).join('')}
+      </div>
+      <div class="al al-s" style="margin-top:14px"><span>🎉</span><span>Tous les paramètres de ta société sont maintenant à jour. Ton dashboard, tes calculs d'IS, de TVA et tes déclarations utilisent ces nouvelles valeurs.</span></div>
+    </div>`;
+    document.body.appendChild(m);
   }else{
-    alert('Aucun nouveau paramètre à appliquer — tout est déjà à jour.');
+    alert('✅ Tout est déjà à jour — aucun changement nécessaire.');
   }
 };
 
