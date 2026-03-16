@@ -325,6 +325,10 @@ function renderPage(){
   }
 }
 
+// ============ APE LABELS (top 80 codes) ============
+const APE_LABELS={'01.11Z':'Culture de céréales','10.71A':'Boulangerie','25.62B':'Mécanique industrielle','41.20A':'Construction de bâtiments','43.21A':'Travaux d\'installation électrique','43.22A':'Travaux de plomberie','43.34Z':'Travaux de peinture','45.11Z':'Commerce de voitures','45.20A':'Entretien et réparation auto','46.69C':'Commerce de gros matériel','47.11B':'Commerce alimentaire','47.11C':'Supérettes','47.11D':'Supermarchés','47.19B':'Commerce de détail','47.41Z':'Commerce d\'ordinateurs','47.52B':'Quincaillerie','47.61Z':'Librairie','47.71Z':'Commerce de vêtements','47.78C':'Autres commerces de détail','49.41A':'Transports routiers de fret','49.42Z':'Déménagement','52.29B':'Affrètement et organisation des transports','55.10Z':'Hôtels','56.10A':'Restauration traditionnelle','56.10C':'Restauration rapide','56.30Z':'Débits de boissons','62.01Z':'Programmation informatique','62.02A':'Conseil en systèmes informatiques','62.09Z':'Autres activités informatiques','63.11Z':'Traitement de données, hébergement','63.12Z':'Portails Internet','64.20Z':'Activités des sociétés holding','66.22Z':'Agents et courtiers d\'assurances','68.20A':'Location de logements','68.20B':'Location de terrains et autres biens immobiliers','68.31Z':'Agences immobilières','69.10Z':'Activités juridiques','69.20Z':'Activités comptables','70.10Z':'Activités des sièges sociaux','70.21Z':'Conseil en relations publiques','70.22Z':'Conseil pour les affaires','71.11Z':'Activités d\'architecture','71.12B':'Ingénierie, études techniques','71.20B':'Analyses, essais et inspections techniques','72.19Z':'R&D en sciences physiques et naturelles','73.11Z':'Activités des agences de publicité','73.12Z':'Régie publicitaire de médias','74.10Z':'Activités spécialisées de design','74.20Z':'Activités photographiques','74.30Z':'Traduction et interprétation','74.90B':'Activités spécialisées, scientifiques et techniques','77.11A':'Location de voitures','78.20Z':'Activités des agences de travail temporaire','79.11Z':'Activités des agences de voyage','80.10Z':'Activités de sécurité privée','81.21Z':'Nettoyage courant des bâtiments','82.11Z':'Services administratifs combinés','82.99Z':'Autres activités de soutien aux entreprises','85.10Z':'Enseignement pré-primaire','85.20Z':'Enseignement primaire','85.31Z':'Enseignement secondaire général','85.41Z':'Enseignement post-secondaire non supérieur','85.42Z':'Enseignement supérieur','85.59A':'Formation continue d\'adultes','85.59B':'Autres enseignements','85.60Z':'Activités de soutien à l\'enseignement','86.10Z':'Activités hospitalières','86.21Z':'Activité des médecins généralistes','86.22C':'Autres activités des médecins spécialistes','86.23Z':'Pratique dentaire','86.90A':'Ambulances','86.90D':'Activités des infirmiers','88.91A':'Accueil de jeunes enfants','90.01Z':'Arts du spectacle vivant','90.03A':'Création artistique','93.11Z':'Gestion d\'installations sportives','93.13Z':'Activités des centres de culture physique','93.29Z':'Autres activités récréatives','95.11Z':'Réparation d\'ordinateurs','96.02A':'Coiffure','96.02B':'Soins de beauté','96.04Z':'Entretien corporel','96.09Z':'Autres services personnels'};
+function getAPELabel(code){if(!code)return'';const c=code.replace(/\s/g,'');return APE_LABELS[c]||APE_LABELS[c.replace(/(\d{2})(\d{2})([A-Z])/,'$1.$2$3')]||'';}
+
 // ============ API SIREN LOOKUP ============
 const FORME_TO_TYPE={'SAS':'SAS','SASU':'SASU','Société par actions simplifiée':'SAS','SAS à associé unique':'SASU',
   'SARL':'SARL','Société à responsabilité limitée':'SARL','EURL':'EURL','Société à responsabilité limitée (sans autre indication)':'SARL',
@@ -346,6 +350,7 @@ async function lookupSIREN(siren){
         const siege=e.siege||{};
         const forme=e.nature_juridique||'';
         const adresseParts=[siege.numero_voie,siege.type_voie,siege.libelle_voie,siege.code_postal,siege.libelle_commune].filter(Boolean);
+        const comp=e.complements||{};
         return{
           source:'API Recherche Entreprises (gouv.fr)',
           nom:e.nom_complet||e.nom_raison_sociale||'',
@@ -362,6 +367,10 @@ async function lookupSIREN(siren){
           effectif:e.tranche_effectif_salarie||'',
           etat:e.etat_administratif||'',
           capital:null,
+          qualiopi:!!comp.est_qualiopi,
+          organismeFormation:!!comp.est_organisme_formation,
+          nda:(comp.liste_id_organisme_formation||[])[0]||'',
+          idcc:(comp.liste_idcc||[])[0]||'',
           raw:e
         };
       }
@@ -446,7 +455,7 @@ async function lookupPappers(siren,apiKey){
 
 // ============ WIZARD ============
 let wizStep=0,wizMode='auto',wizLoading=false,wizError='',wizResult=null,wizPappersKey='';
-let wizForm={type:'SAS',nom:'',siren:'',dateCreation:'',capital:1000,adresse:'',ape:'',regime:'is',regimeTVA:'reel_simplifie',rem:3000,trancheIR:'30',activite:'services'};
+let wizForm={type:'SAS',nom:'',siren:'',dateCreation:'',capital:'',adresse:'',ape:'',apeLabel:'',regime:'is',regimeTVA:'reel_simplifie',rem:0,trancheIR:'30',activite:'services',qualiopi:false,nda:'',objetSocial:''};
 
 function renderWizard(){
   const t=TYPES[wizForm.type]||TYPES.SAS;
@@ -486,18 +495,19 @@ function renderWizard(){
             <div style="font-size:12px"><b>SIREN:</b> ${wizResult.siren}</div>
             <div style="font-size:12px"><b>SIRET:</b> ${wizResult.siret||'-'}</div>
             <div style="font-size:12px"><b>Création:</b> ${fmtD(wizResult.dateCreation)}</div>
-            <div style="font-size:12px"><b>APE:</b> ${wizResult.ape}</div>
+            <div style="font-size:12px"><b>APE:</b> ${wizResult.ape} ${wizForm.apeLabel?'— '+wizForm.apeLabel:''}</div>
             <div style="font-size:12px"><b>Adresse:</b> ${wizResult.adresse}</div>
-            <div style="font-size:12px"><b>Effectif:</b> ${wizResult.effectif||'NC'}</div>
             ${wizResult.capital?`<div style="font-size:12px"><b>Capital:</b> ${fmt(wizResult.capital)}</div>`:''}
             <div style="font-size:12px"><b>État:</b> <span class="tg ${wizResult.etat==='A'||wizResult.etat==='Actif'?'t-grn':'t-red'}">${wizResult.etat==='A'?'Actif':wizResult.etat||'NC'}</span></div>
+            ${wizResult.qualiopi?`<div style="font-size:12px"><b>Qualiopi:</b> <span class="tg t-grn">✓ Certifié</span></div>`:''}
+            ${wizResult.organismeFormation?`<div style="font-size:12px"><b>Organisme de formation:</b> <span class="tg t-grn">✓ NDA ${wizResult.nda||''}</span></div>`:''}
           </div>
           <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:8px">
             <div style="font-size:11px;font-weight:700;color:var(--acc2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Paramètres déduits automatiquement</div>
             <div style="font-size:12px"><b>Régime fiscal:</b> <span class="tg ${wizForm.regime==='is'?'t-pur':'t-org'}">${wizForm.regime==='is'?'IS (Impôt sur les Sociétés)':'IR (Impôt sur le Revenu)'}</span></div>
-            <div style="font-size:12px"><b>TVA:</b> <span class="tg t-blu">${{franchise:'Franchise en base',exoneree:'Exonéré (art. 261)',reel_simplifie:'Réel simplifié',reel_normal:'Réel normal'}[wizForm.regimeTVA]||wizForm.regimeTVA}</span></div>
+            <div style="font-size:12px"><b>TVA:</b> <span class="tg t-blu">${{franchise:'Franchise en base',exoneree:'Exonéré (art. 261-4-4° CGI)',reel_simplifie:'Réel simplifié',reel_normal:'Réel normal'}[wizForm.regimeTVA]||wizForm.regimeTVA}</span></div>
             <div style="font-size:12px"><b>Activité:</b> ${{services:'Services',ventes:'Ventes de marchandises',liberal:'Profession libérale',mixte:'Mixte'}[wizForm.activite]||wizForm.activite}</div>
-            <div style="font-size:10px;color:var(--tx3);margin-top:4px">Tu pourras modifier tout ça à l'étape suivante</div>
+            <div style="font-size:10px;color:var(--tx3);margin-top:4px">Modifiable à l'étape suivante</div>
           </div>
           ${wizResult.dirigeants&&wizResult.dirigeants.length>0?`
             <div style="margin-top:12px;font-size:12px"><b>Dirigeants :</b></div>
@@ -527,21 +537,22 @@ function renderWizard(){
     </div>`,
 
     // Step 2: Fiscal
-    `<p style="font-size:13px;color:var(--tx2);margin-bottom:16px">Configuration fiscale</p>
+    `<p style="font-size:13px;color:var(--tx2);margin-bottom:16px">Vérifie et ajuste si nécessaire ${wizResult?'<span class="tg t-grn">Pré-rempli</span>':''}</p>
     <div class="gr g2">
-      <div class="fg"><label>Régime</label><select class="inp" onchange="wizSet('regime',this.value)"><option value="is" ${wizForm.regime==='is'?'selected':''}>IS</option><option value="ir" ${wizForm.regime==='ir'?'selected':''}>IR</option></select></div>
-      <div class="fg"><label>TVA</label><select class="inp" onchange="wizSet('regimeTVA',this.value);wizUpdateTVAInfo()">
+      <div class="fg"><label>Régime d'imposition</label><select class="inp" onchange="wizSet('regime',this.value)"><option value="is" ${wizForm.regime==='is'?'selected':''}>IS — Impôt sur les Sociétés</option><option value="ir" ${wizForm.regime==='ir'?'selected':''}>IR — Impôt sur le Revenu</option></select>
+      <div style="margin-top:4px;font-size:10px;color:var(--tx3)">${wizForm.regime==='is'?'Bénéfices taxés au niveau de la société (15% puis 25%)':'Bénéfices imposés dans ta déclaration personnelle'}</div></div>
+      <div class="fg"><label>Régime de TVA</label><select class="inp" onchange="wizSet('regimeTVA',this.value);wizUpdateTVAInfo()">
         <option value="franchise" ${wizForm.regimeTVA==='franchise'?'selected':''}>Franchise en base (pas de TVA)</option>
-        <option value="exoneree" ${wizForm.regimeTVA==='exoneree'?'selected':''}>Exonéré de TVA (art. 261)</option>
+        <option value="exoneree" ${wizForm.regimeTVA==='exoneree'?'selected':''}>Exonéré de TVA (art. 261-4-4°)</option>
         <option value="reel_simplifie" ${wizForm.regimeTVA==='reel_simplifie'?'selected':''}>Réel simplifié</option>
         <option value="reel_normal" ${wizForm.regimeTVA==='reel_normal'?'selected':''}>Réel normal</option>
       </select>
-      <div id="tvaInfo" style="margin-top:6px;font-size:10px;color:var(--tx3);line-height:1.5"></div>
+      <div id="tvaInfo" style="margin-top:4px;font-size:10px;color:var(--tx3);line-height:1.5"></div>
       </div>
-      <div class="fg"><label>Activité</label><select class="inp" onchange="wizSet('activite',this.value)"><option value="services" ${wizForm.activite==='services'?'selected':''}>Services</option><option value="ventes" ${wizForm.activite==='ventes'?'selected':''}>Ventes</option><option value="liberal" ${wizForm.activite==='liberal'?'selected':''}>Libéral</option></select></div>
-      <div class="fg"><label>Rémunération brute/mois (€)</label><input class="inp" type="number" value="${wizForm.rem}" onchange="wizSet('rem',+this.value)"></div>
     </div>
-    <div class="fg"><label>Tranche marginale IR</label><select class="inp" onchange="wizSet('trancheIR',this.value)"><option value="0">0%</option><option value="11">11%</option><option value="30" ${wizForm.trancheIR==='30'?'selected':''}>30%</option><option value="41">41%</option><option value="45">45%</option></select></div>`
+    <div class="fg"><label>Type d'activité</label><select class="inp" onchange="wizSet('activite',this.value)"><option value="services" ${wizForm.activite==='services'?'selected':''}>Prestations de services</option><option value="ventes" ${wizForm.activite==='ventes'?'selected':''}>Ventes de marchandises</option><option value="liberal" ${wizForm.activite==='liberal'?'selected':''}>Profession libérale</option><option value="mixte" ${wizForm.activite==='mixte'?'selected':''}>Mixte</option></select></div>
+    ${wizForm.capital===''||wizForm.capital===null?`<div class="fg"><label>Capital social (€)</label><input class="inp" type="number" placeholder="Ex: 200" value="" onchange="wizSet('capital',+this.value)"><div style="margin-top:4px;font-size:10px;color:var(--tx3)">Non trouvé via l'API — indique-le ou importe tes statuts plus tard</div></div>`:''}
+    <div class="al al-i" style="margin-top:8px"><span>💡</span><span>La rémunération, la tranche IR et les autres paramètres avancés se configurent dans <b>Paramètres société</b> une fois dans l'application.</span></div>`
   ];
 
   const canNext=wizStep===0?(wizMode==='auto'?!!wizResult:!!wizForm.type):true;
@@ -578,6 +589,11 @@ window.wizAutoLookup=async()=>{
     wizForm.ape=wizResult.ape||wizForm.ape;
     wizForm.type=wizResult.type||wizForm.type;
     if(wizResult.capital)wizForm.capital=wizResult.capital;
+    if(wizResult.nda)wizForm.nda=wizResult.nda;
+    if(wizResult.qualiopi)wizForm.qualiopi=true;
+
+    // Lookup APE label
+    wizForm.apeLabel=getAPELabel(wizForm.ape);
 
     // Auto-deduce fiscal regime from type
     const tp=wizForm.type;
@@ -586,25 +602,14 @@ window.wizAutoLookup=async()=>{
 
     // Auto-deduce TVA from APE code
     const ape=(wizForm.ape||'').replace(/[.\s]/g,'');
-    // Formation professionnelle (8559A, 8559B, 8560Z) → exonéré TVA art. 261-4-4°
     if(/^855[9]|^8560/.test(ape))wizForm.regimeTVA='exoneree';
-    // Santé (86xx), enseignement (85xx hors formation pro) → often franchise
     else if(/^86/.test(ape))wizForm.regimeTVA='franchise';
-    // Micro-entrepreneur → franchise par défaut
     else if(tp==='MICRO')wizForm.regimeTVA='franchise';
-    // Others: réel simplifié by default (already set)
 
     // Auto-deduce activité from APE
-    if(/^47|^45|^46/.test(ape))wizForm.activite='ventes'; // Commerce
-    else if(/^69|^70|^71|^72|^73|^74/.test(ape))wizForm.activite='liberal'; // Professions libérales
+    if(/^47|^45|^46/.test(ape))wizForm.activite='ventes';
+    else if(/^69|^70|^71|^72|^73|^74/.test(ape))wizForm.activite='liberal';
     else wizForm.activite='services';
-
-    // Auto-set rem to 0 for new companies (will be configured later)
-    if(wizResult.dateCreation){
-      const created=new Date(wizResult.dateCreation);
-      const monthsOld=(new Date()-created)/(1000*60*60*24*30);
-      if(monthsOld<6)wizForm.rem=0; // New company, probably no salary yet
-    }
   }catch(e){wizError=e.message;}
   wizLoading=false;renderWizard();
 };
@@ -623,7 +628,7 @@ window.wizUpdateTVAInfo=()=>{
   };
   el.textContent=info[v]||'';
 };
-window.wizDone=()=>{company={...wizForm};persist();render();};
+window.wizDone=()=>{company={...wizForm};if(!company.capital)company.capital=0;if(wizForm.apeLabel)company.apeLabel=wizForm.apeLabel;persist();render();};
 window.resetCompany=()=>{if(confirm('Changer de société ?')){company=null;save('company',null);wizStep=0;wizResult=null;wizError='';render();}};
 
 // ============ DASHBOARD ============
