@@ -1141,6 +1141,64 @@ function renderOpti(el){
         `Tu as ${nbSal} salarié${nbSal>1?'s':''}. La provision pour congés payés (10% de la masse salariale) est déductible immédiatement.`,
         '10% de la masse salariale brute. Déductible fiscalement l\'année de constitution.',
         ['Salariés','10%'])]:[]),
+      mk(true, 0,
+        'Téléphone + Internet — 50% déductible',
+        'Tu utilises ton portable/internet perso pour le boulot ? La société prend en charge 50% de la facture. Pas de justificatif d\'usage pro si forfait raisonnable.',
+        'Base : quote-part professionnelle. En pratique 50% accepté sans justification si pas excessif. ~25-40 €/mois = 300-480 €/an déductibles.',
+        ['Quotidien','Facile']),
+      mk(true, 0,
+        'Vêtements spécifiques',
+        'Les vêtements obligatoires pour ton activité (blouse, costume obligatoire, EPI, uniforme) sont déductibles. Pas les vêtements "de ville".',
+        'Art. 83-3° CGI. Inclut : bleu de travail, blouse, chaussures de sécurité, uniforme. Exclu : costume, chemise classique (sauf professions réglementées).',
+        ['Peu connu','Terrain']),
+    ]},
+
+    {id:'avance',icon:'🎯',label:'Stratégies avancées',color:'#10b981',desc:'Les leviers que seuls les excellents comptables activent',items:[
+      mk(isIS&&c.ben<0, Math.min(Math.abs(c.ben),1e6)*.25,
+        'Carry-back — récupère l\'IS payé l\'an dernier',
+        `Tu as un déficit de ${fmt(Math.abs(c.ben))} cette année. Si tu as payé de l'IS l'an dernier, tu peux le récupérer immédiatement grâce au carry-back. L'État te rembourse.`,
+        'Art. 220 quinquies CGI. Report en arrière sur l\'exercice précédent, max 1M€. Génère une créance sur l\'État remboursable à 5 ans ou imputable immédiatement.',
+        ['Déficit','Remboursement'],
+        !isIS?'Uniquement IS':''),
+      mk(isIS&&c.ben<0, 0,
+        'Report de déficit en avant — illimité',
+        `Ton déficit de ${fmt(Math.abs(c.ben))} se reporte sur les bénéfices futurs. Pas de limite de durée. L'année où tu refais du bénéfice, tu ne payeras pas d'IS.`,
+        'Art. 209 I CGI. Report illimité dans le temps. Imputation limitée à 1M€ + 50% du bénéfice excédant 1M€ par exercice.',
+        ['Déficit','Futur'],
+        c.ben>=0?'Pas de déficit actuellement':''),
+      mk(isIS, 0,
+        'Provision pour créances douteuses',
+        `Tu as des clients qui traînent à payer ? Dès la première lettre de relance en recommandé, tu peux provisionner 50 à 100% de la créance. C'est déductible immédiatement.`,
+        'Art. 39-1-5° CGI. Justification : mise en demeure AR, ancienneté de la dette, situation financière du débiteur. Provision reprise si le client finit par payer.',
+        ['Trésorerie','IS']),
+      mk(isIS&&c.ben>42500, (c.ben-42500)*.10,
+        'Timing des dépenses : acheter avant la clôture',
+        `Ton bénéfice (${fmt(c.ben)}) dépasse les 42 500 € — au-delà c'est taxé à 25% au lieu de 15%. En investissant ${fmt(c.ben-42500)} avant la clôture (matériel, formation, logiciel), tu ramènes ton bénéfice sous le seuil. Économie : ${fmt((c.ben-42500)*.10)}.`,
+        'La charge est déductible sur l\'exercice de la facture (date de livraison/prestation). Commander avant le 31/12, même si tu payes en janvier.',
+        ['Stratégie','Fin d\'année'],
+        c.ben<=42500?'Bénéfice déjà sous le seuil IS réduit':''),
+      mk(isIS, 0,
+        'Rémunération du compte courant d\'associé',
+        `Tu as laissé de l'argent dans ta société en compte courant ? Elle peut te verser des intérêts (taux fiscal max ~5,47% en 2025). Les intérêts sont déductibles pour la société et soumis au PFU 30% pour toi.`,
+        'Art. 39-1-3° CGI. Taux max déductible = moyenne des taux bancaires (TMP). Capital social intégralement libéré obligatoire. Intérêts déclarés en DAS2 si > 1 200 €/an.',
+        ['Trésorerie','Revenus']),
+      mk(isIS&&c.ca>50000, 0,
+        'Holding — faut-il en créer une ?',
+        `Avec un CA de ${fmt(c.ca)}, une holding peut être pertinente pour : remonter les dividendes quasi sans impôt (régime mère-fille, 5% seulement taxé), mutualiser les charges, réinvestir. Coût : ~500 €/an de compta en plus.`,
+        'Régime mère-fille art. 145 CGI : holding détient ≥ 5% depuis ≥ 2 ans → dividendes exonérés à 95%. Convention de trésorerie pour prêts intra-groupe. Management fees déductibles si justifiés.',
+        ['Structure','Long terme']),
+      mk(company?.type==='EURL'&&company?.regime!=='is', 0,
+        'Passer ton EURL à l\'IS',
+        `En EURL à l'IR, tout le bénéfice est imposé à ta tranche marginale (${company?.trancheIR||30}%). En passant à l'IS, tu payes 15% sur les 42 500 premiers €, et tu choisis combien te verser. Si ton bénéfice > 30 000 €, l'IS est souvent plus intéressant.`,
+        'Option IS irrévocable (depuis 2019 : révocable pendant 5 ans). Courrier recommandé au SIE avant la fin du 3ème mois de l\'exercice.',
+        ['Régime','Changement'],
+        company?.type!=='EURL'?'Uniquement pour les EURL':''),
+      mk(t.divCh&&(company.capital||0)<10000, 0,
+        'Augmenter le capital pour réduire les charges sur dividendes',
+        `En ${t.l}, les dividendes au-dessus de 10% du capital (${fmt((company.capital||0)*.10)}/an) supportent des charges sociales (~45%). Ton capital est de ${fmt(company.capital||0)} — en l'augmentant à 10 000 €, le seuil passe à 1 000 €/an de dividendes non chargés.`,
+        'Augmentation par incorporation de réserves (gratuit) ou par apport. PV d\'AGE + dépôt au greffe (~200 €). Art. L223-32 C.com pour SARL.',
+        ['Capital','Dividendes'],
+        !t.divCh?'Dividendes non chargés dans ta forme juridique':''),
     ]},
   ];
 
@@ -2751,49 +2809,88 @@ TOP 5 CATÉGORIES DE DÉPENSES:
 ${(()=>{const cats={};depenses.forEach(d=>{cats[d.cat||'Autre']=(cats[d.cat||'Autre']||0)+(d.ht||0)});return Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`- ${k}: ${v.toFixed(2)} €`).join('\n')})()}`;
 }
 
-const AI_SYSTEM=`Tu es FiscaPro AI, un assistant expert qui combine 3 rôles:
+const AI_SYSTEM=`Tu es FiscaPro AI — le meilleur comptable de France, celui que les entrepreneurs s'arrachent. Tu combines 3 casquettes :
 
-1. EXPERT-COMPTABLE SENIOR (20 ans d'expérience)
-- Tu maîtrises le PCG, la comptabilité française, les normes ANC
-- Tu sais lire un bilan, un compte de résultat, un grand livre
-- Tu conseilles sur les écritures, la clôture, les amortissements
+🧮 EXPERT-COMPTABLE SENIOR (20 ans terrain, 500+ clients)
+Tu as tout vu : des freelances à 0€ de CA, des SARL familiales, des SAS qui lèvent des fonds. Tu connais les VRAIS leviers, pas la théorie des manuels.
+- PCG, normes ANC, liasse fiscale, FEC, bilan, compte de résultat
+- Écritures de clôture, cut-off, provisions, amortissements (linéaire, dégressif, composant)
+- Rapprochement bancaire, lettrage, comptabilité analytique
+- Tu sais quand une charge est déductible et quand elle ne l'est pas (art. 39 CGI)
 
-2. INSPECTEUR DES IMPÔTS (reconverti en conseil)
-- Tu connais le CGI par cœur (IS, IR, TVA, CET, CVAE, CFE)
-- Tu sais ce qui déclenche un contrôle fiscal et comment l'éviter
-- Tu connais les seuils, les délais, les formulaires (2065, 2033, CA3, CA12, DAS2...)
+🕵️ EX-INSPECTEUR DES IMPÔTS (15 ans à la DGFiP, reconverti en conseil)
+Tu sais exactement ce que la DGFiP regarde, comment elle déclenche un contrôle, et les erreurs à ne JAMAIS faire.
+- CGI par cœur : IS (art. 205+), IR (art. 1+), TVA (art. 256+), CET/CVAE/CFE
+- Tous les formulaires : 2065, 2033, 2050-2059, CA3, CA12, DAS2, 2069-RCI, 3519
+- Seuils, délais, majorations, intérêts de retard (0,2%/mois)
+- Ce qui déclenche un contrôle : incohérences, charges anormales, ratio marge vs secteur
+- Prescription 3 ans (L169 LPF), 6 ans si activité occulte
 
-3. AVOCAT FISCALISTE SENIOR
-- Tu optimises la rémunération (salaire vs dividendes)
-- Tu connais les niches fiscales (CIR, CII, JEI, ZFU, CESU...)
-- Tu conseilles sur la structure juridique optimale
+⚖️ AVOCAT FISCALISTE SENIOR (cabinet Big Four, puis indépendant)
+Tu connais toutes les optimisations légales agressives que les grands cabinets facturent 500€/h.
+- Arbitrage salaire/dividendes au centime près selon forme juridique + tranche IR
+- Toutes les niches : CIR (30%), CII (20%), JEI, ZFU, CESU (2540€), IP Box (10%)
+- Holding, convention de trésorerie, intégration fiscale, management fees
+- Report de déficits (en avant illimité, carry-back 1 an)
+- Choix IR vs IS selon profil exact (simulations comparées)
+- Structuration : quand créer une holding, quand passer en SAS, etc.
 
-RÈGLES:
-- Parle simplement, comme si tu expliquais à un lycéen de 15 ans
-- Utilise des exemples concrets avec des chiffres
-- Cite toujours l'article de loi ou la source quand tu affirmes quelque chose
-- Si tu n'es pas sûr, dis-le clairement
-- Donne des conseils ACTIONNABLES (pas juste de la théorie)
-- Adapte tes réponses au contexte exact de l'entreprise (voir ci-dessous)
-- Quand c'est pertinent, propose de générer un document (modèle de lettre, déclaration, etc.)
-- Utilise des emojis pour rendre tes réponses plus lisibles
+💡 TON EXPERTISE TERRAIN — les conseils que les comptables donnent en off :
+- Frais de repas : déduire entre 5,35€ et 20,70€/repas, ~220 jours = 1500€/an (art. 93 CGI)
+- IK au barème max : 10 000 km × 5CV = ~5 000€/an exonéré (art. 83-10° CGI)
+- Loyer à soi-même : la société te paye un loyer marché pour ton bureau à domicile, tu déclares en micro-foncier (30% abattement)
+- CESU préfinancés : 2 540€/an exonérés de tout (art. L7233-4 Code travail)
+- Chèques vacances : ~540€/an exonérés (art. L411-1 Code tourisme)
+- Tickets restaurant : part patronale 60% exonérée, 7,18€/titre max
+- PEE/PERCO : abondement 3 709€/an exonéré charges (hors CSG 9,7%)
+- Madelin/PER pour TNS : cotisations retraite déductibles du bénéfice
+- Cadeaux clients : TVA récupérable si < 73€ TTC/personne/an
+- Amortissement logiciel en 12 mois, matos info en 3 ans
+- Suramortissement 40% robotique/industrie (art. 39 decies)
+- Provision clients douteux : déductible dès la première relance recommandée
+- Provision risques : litige, garantie, remise en état — déductible si probable et chiffrable
+- Don association : réduction IS 60% dans la limite de 20 000€ ou 0,5% CA
+- Crédit formation dirigeant : 40h × SMIC = 475€ (doublé si TPE < 10 salariés = 950€)
+- Déblocage anticipé PEE : mariage, naissance 3ème enfant, achat résidence — récupère l'épargne sans impôt
+- Carry-back : en cas de bénéfice N-1 et déficit N, récupère l'IS payé l'année précédente (max 1M€)
+- Option IS pour EURL : souvent plus intéressant si bénéfice > 30K€ (taux 15% vs tranche IR)
+- Augmentation capital : pour les SARL/EURL, augmenter le capital permet d'augmenter le seuil 10% dividendes sans charges
+- Convention de trésorerie : entre ta société et ta holding, rémunérée au taux légal
+- Management fees : ta holding facture des prestations de direction — déductible pour la fille, revenu pour la holding
+
+RÈGLES DE COMMUNICATION :
+- Parle comme un pote expert, pas comme un manuel scolaire
+- Explique pour qu'un lycéen de 15 ans comprenne — analogies du quotidien
+- Donne TOUJOURS un exemple chiffré avec les vrais chiffres de la société
+- Cite l'article de loi à chaque affirmation importante (ex: "art. 39 CGI")
+- Quand tu proposes une optimisation, donne le montant exact d'économie
+- Si une astuce a des conditions, liste-les clairement
+- Quand c'est pertinent, propose de générer un document (lettre, calcul, déclaration)
+- Utilise des emojis pour structurer tes réponses
 - Réponds en français
 
-IMPORTANT: Tu n'es PAS un expert-comptable inscrit à l'Ordre. Précise que tes conseils sont informatifs et qu'il faut les faire valider par un professionnel pour les décisions importantes.`;
+⚠️ DISCLAIMER : Tu n'es PAS inscrit à l'Ordre des experts-comptables. Tes conseils sont informatifs. Pour les décisions structurantes (changement de régime, holding, etc.), recommande de valider avec un professionnel.`;
 
 function buildSuggestions(){
-  const c=compute();const sug=[];
-  if(!company?.ape)sug.push('Quel code APE pour mon activité ?');
-  if(c.ca>30000&&company?.regimeTVA==='franchise')sug.push('Je dépasse le seuil TVA, que faire ?');
-  if(c.ben>0)sug.push('Comment optimiser mon IS ?');
-  if(c.encours>0)sug.push('Comment relancer mes impayés ?');
-  sug.push('Salaire ou dividendes, que choisir ?');
-  sug.push('Quelles dépenses je peux déduire ?');
-  sug.push('Préparer ma clôture annuelle');
-  if(depenses.some(d=>/restaurant|repas/i.test(d.cat)))sug.push('Limites de déduction des repas ?');
-  sug.push('Échéances fiscales à venir');
-  sug.push('Comment lire mon bilan ?');
-  return sug.slice(0,6);
+  const c=compute();const t=TYPES[company?.type]||TYPES.SAS;const sug=[];
+  // Urgences d'abord
+  if(c.ca>30000&&company?.regimeTVA==='franchise')sug.push('Je dépasse le seuil TVA !');
+  if(c.encours>0)sug.push('Relancer mes '+fmt(c.encours)+' d\'impayés');
+  if(c.treso<0)sug.push('Ma trésorerie est négative, que faire ?');
+  // Optimisations chiffrées
+  if(c.ben>0)sug.push('Combien je peux économiser sur mon IS de '+fmt(c.is)+' ?');
+  sug.push('Salaire vs dividendes : calcule le mix optimal');
+  sug.push('Quelles dépenses je peux déduire que j\'oublie ?');
+  // Contextuelles
+  if(company?.rem===0&&c.ca>5000)sug.push('Je ne me verse rien, c\'est grave ?');
+  if(t.tns)sug.push('Comment réduire mes cotisations URSSAF ?');
+  if(!t.tns)sug.push('CESU, tickets resto, PEE : combien j\'économise ?');
+  if(c.ben>42500)sug.push('Mon bénéfice dépasse 42 500€, stratégie ?');
+  sug.push('Préparer ma clôture : checklist complète');
+  sug.push('Comment payer 0€ de CFE ?');
+  sug.push('Est-ce que je dois créer une holding ?');
+  sug.push('IK + frais repas : combien je récupère ?');
+  return sug.slice(0,8);
 }
 
 function renderAssistant(el){
