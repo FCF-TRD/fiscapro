@@ -1597,11 +1597,12 @@ function renderPrevisionnel(el){
   setTimeout(()=>{
     const cv=$('#chPrev');if(!cv)return;
     if(charts.prev)charts.prev.destroy();
-    charts.prev=new Chart(cv,{type:'bar',data:{labels:months,datasets:[
-      {label:'CA',data:prevCA,backgroundColor:months.map((_,i)=>i>now?'rgba(99,102,241,.25)':'rgba(99,102,241,.5)'),borderRadius:5},
-      {label:'Dépenses+Charges',data:months.map((_,i)=>prevDep[i]+remM),backgroundColor:months.map((_,i)=>i>now?'rgba(239,68,68,.15)':'rgba(239,68,68,.35)'),borderRadius:5},
-      {type:'line',label:'Trésorerie',data:tresoM,borderColor:'#06b6d4',backgroundColor:'transparent',tension:.4,pointRadius:3}
-    ]},options:chartOpts()});
+    const mob=window.innerWidth<600;
+    charts.prev=new Chart(cv,{type:'bar',data:{labels:months.map(m=>m.substring(0,3)),datasets:[
+      {label:'CA',data:prevCA,backgroundColor:months.map((_,i)=>i>now?'rgba(99,102,241,.25)':'rgba(99,102,241,.5)'),borderRadius:4,barPercentage:.7},
+      {label:'Dép.+Charges',data:months.map((_,i)=>prevDep[i]+remM),backgroundColor:months.map((_,i)=>i>now?'rgba(239,68,68,.15)':'rgba(239,68,68,.35)'),borderRadius:4,barPercentage:.7},
+      {type:'line',label:'Tréso.',data:tresoM,borderColor:'#06b6d4',backgroundColor:'transparent',tension:.4,pointRadius:mob?2:3,borderWidth:2}
+    ]},options:{responsive:true,maintainAspectRatio:true,aspectRatio:mob?1.8:2.5,plugins:{legend:{labels:{color:'#94a3b8',font:{size:mob?8:10},boxWidth:mob?8:12}}},scales:{x:{ticks:{color:'#64748b',font:{size:mob?7:9},maxRotation:0},grid:{display:false}},y:{ticks:{color:'#64748b',font:{size:mob?7:9},maxTicksLimit:4},grid:{color:'rgba(37,41,56,.3)'}}}}});
   },50);
 }
 const FISCAL_ALERT_TVA=33000;
